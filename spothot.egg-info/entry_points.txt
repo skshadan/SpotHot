@@ -1,0 +1,2 @@
+[console_scripts]
+spothot = spothot.main:main
