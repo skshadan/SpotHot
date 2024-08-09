@@ -27,6 +27,12 @@ Spothot is a Python package that transforms your Raspberry Pi into a Wi-Fi hotsp
 ```bash
  pip install spothot
 ```
+or
+
+```bash
+ sudo apt-get install dnsmasq hostapd python3-flask dhcpcd5 iptables && sudo pip install spothot
+```
+
 
 
 
@@ -56,6 +62,8 @@ To ensure that Spothot runs on boot, add the following line to your /etc/rc.loca
   sudo spothot --ssid YourSSID --password YourPassword &
 ```
 
+![Logo](https://github.com/skshadan/SpotHot/blob/main/images/wifi.png?raw=true)
+
 
 
 
@@ -71,4 +79,3 @@ Contributions are welcome! Please feel free to submit a Pull Request or open an 
 
 
 ## fin.
-
