@@ -31,13 +31,13 @@ Replace YourSSID and YourPassword with your desired network name and password.
 
 ### Example
 
-spothot --ssid MyHotspot --password MySecretPassword
+``spothot --ssid MyHotspot --password MySecretPassword``
 
 ## Running on Boot
 
 To ensure that Spothot runs on boot, add the following line to your /etc/rc.local file before the exit 0 line:
 
-sudo spothot --ssid YourSSID --password YourPassword &
+``sudo spothot --ssid YourSSID --password YourPassword &``
 
 Replace YourSSID and YourPassword with your desired network name and password.
 
