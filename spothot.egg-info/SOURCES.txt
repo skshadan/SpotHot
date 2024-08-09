@@ -3,6 +3,7 @@ setup.py
 spothot/__init__.py
 spothot/app.py
 spothot/main.py
+spothot/post_install.py
 spothot.egg-info/PKG-INFO
 spothot.egg-info/SOURCES.txt
 spothot.egg-info/dependency_links.txt
