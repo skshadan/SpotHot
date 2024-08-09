@@ -12,7 +12,7 @@ class CustomInstallCommand(install):
 
 setup(
     name='spothot',
-    version='0.1.9',
+    version='1.0',
     packages=find_packages(),
     install_requires=[
         'Flask',

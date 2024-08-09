@@ -21,25 +21,11 @@ def log_message(message):
         log_file.write(message + "\n")
     print(message)
 
-def run_command(command, retry_on_failure=False):
+def run_command(command):
     try:
         subprocess.run(command, shell=True, check=True)
     except subprocess.CalledProcessError as e:
         log_message(f"Command '{command}' failed with error: {e}")
-        if retry_on_failure and "hostapd" in command:
-            log_message("Attempting to resolve wpa_supplicant conflict and retrying...")
-            resolve_wpa_supplicant_conflict()
-            try:
-                subprocess.run(command, shell=True, check=True)
-            except subprocess.CalledProcessError as e:
-                log_message(f"Retry failed with error: {e}")
-
-def resolve_wpa_supplicant_conflict():
-    log_message("Stopping wpa_supplicant to avoid conflicts with hostapd...")
-    run_command('sudo systemctl stop wpa_supplicant')
-    log_message("Bringing wlan0 interface down and up again...")
-    run_command('sudo ifconfig wlan0 down')
-    run_command('sudo ifconfig wlan0 up')
 
 def configure_network(ssid, password):
     log_message("Configuring network...")
@@ -84,8 +70,11 @@ wpa_pairwise=TKIP
 rsn_pairwise=CCMP
 """)
 
+    # Unmask hostapd service
+    run_command('sudo systemctl unmask hostapd')
+
     # Correct the DAEMON_CONF line in /etc/default/hostapd
-    run_command('sudo sed -i \'s|DAEMON_CONF=".*"|DAEMON_CONF="/etc/hostapd/hostapd.conf"|\' /etc/default/hostapd')
+    run_command('sudo sed -i \'s|#DAEMON_CONF=".*"|DAEMON_CONF="/etc/hostapd/hostapd.conf"|\' /etc/default/hostapd')
     run_command('sudo sed -i \'s|#net.ipv4.ip_forward=1|net.ipv4.ip_forward=1|g\' /etc/sysctl.conf')
     run_command('sudo sysctl -p')
     run_command('sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE')
@@ -95,7 +84,7 @@ def restart_services():
     log_message("Restarting services...")
     run_command('sudo systemctl restart dhcpcd')
     run_command('sudo systemctl restart dnsmasq')
-    run_command('sudo systemctl restart hostapd', retry_on_failure=True)
+    run_command('sudo systemctl restart hostapd')
 
 def start_flask_app():
     log_message("Starting Flask app...")
