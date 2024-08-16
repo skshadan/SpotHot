@@ -2,3 +2,4 @@ build
 dist
 spothot.egg-info
 .pypirc
+.env

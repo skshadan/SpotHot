@@ -2,9 +2,11 @@ import os
 import subprocess
 import argparse
 from spothot.app import run_flask
+import time
 
 LOG_DIR = "/home/pi/"
 LOG_FILE = os.path.join(LOG_DIR, "configure_hotspot.log")
+WPA_SUPPLICANT_CONF = "/etc/wpa_supplicant/wpa_supplicant.conf"
 
 # Ensure the necessary directories exist
 def ensure_directory(path):
@@ -27,22 +29,51 @@ def run_command(command):
     except subprocess.CalledProcessError as e:
         log_message(f"Command '{command}' failed with error: {e}")
 
+def is_wifi_configured():
+    if os.path.exists(WPA_SUPPLICANT_CONF):
+        with open(WPA_SUPPLICANT_CONF, 'r') as file:
+            content = file.read()
+            return 'ssid' in content and 'psk' in content
+    return False
+
+def clean_up_wpa_supplicant():
+    # Kill any running wpa_supplicant instances to avoid conflicts
+    run_command('sudo killall wpa_supplicant')
+
+    # Remove stale wpa_supplicant control interfaces
+    run_command('sudo rm -rf /var/run/wpa_supplicant/wlan0')
+
+def connect_to_wifi(retries=3, wait_time=10):
+    log_message("Attempting to connect to configured Wi-Fi...")
+
+    clean_up_wpa_supplicant()
+
+    # Start wpa_supplicant to connect to the Wi-Fi network
+    run_command('sudo wpa_supplicant -B -i wlan0 -c /etc/wpa_supplicant/wpa_supplicant.conf')
+
+    for attempt in range(retries):
+        log_message(f"Connection attempt {attempt + 1} of {retries}")
+        # Request an IP address from the DHCP server
+        run_command('sudo dhclient wlan0')
+
+        # Check if connected to Wi-Fi
+        try:
+            subprocess.check_call(['ping -c 1 8.8.8.8'], shell=True)
+            log_message("Connected to Wi-Fi successfully.")
+            run_command('sudo systemctl restart dhcpcd')
+            return True
+        except subprocess.CalledProcessError:
+            log_message("Failed to connect to Wi-Fi.")
+            time.sleep(wait_time)
+
+    log_message("All Wi-Fi connection attempts failed.")
+    return False
+
 def configure_network(ssid, password):
     log_message("Configuring network...")
 
-    # Ensure directories exist before writing configuration files
-    ensure_directory('/etc/hostapd')
-    ensure_directory('/etc/dnsmasq.d')
-    ensure_directory('/etc')
-
-    # Create dhcpcd.conf configuration
-    with open('/etc/dhcpcd.conf', 'w') as f:
-        f.write("""
-# Static IP configuration for wlan0
-interface wlan0
-    static ip_address=192.168.4.1/24
-    nohook wpa_supplicant
-""")
+    # Remove static IP configuration for wlan0 from dhcpcd.conf if it exists
+    run_command('sudo sed -i \'/^interface wlan0$/,/^$/d\' /etc/dhcpcd.conf')
 
     # Create dnsmasq.conf configuration
     with open('/etc/dnsmasq.conf', 'w') as f:
@@ -54,20 +85,32 @@ dhcp-range=192.168.4.2,192.168.4.20,255.255.255.0,24h
     # Create hostapd.conf configuration
     with open('/etc/hostapd/hostapd.conf', 'w') as f:
         f.write(f"""
+# Interface and driver settings
 interface=wlan0
 driver=nl80211
+
+# Wi-Fi settings
 ssid={ssid}
 hw_mode=g
-channel=7
-wmm_enabled=0
-macaddr_acl=0
-auth_algs=1
-ignore_broadcast_ssid=0
+channel=10
+
+# Security settings
 wpa=2
 wpa_passphrase={password}
 wpa_key_mgmt=WPA-PSK
-wpa_pairwise=TKIP
 rsn_pairwise=CCMP
+
+# Additional settings
+macaddr_acl=0
+auth_algs=1
+ignore_broadcast_ssid=0
+wmm_enabled=1
+
+# Enable IEEE 802.11n (high throughput)
+ieee80211n=1
+
+# Optional: Enable Short Guard Interval for 802.11n
+ht_capab=[SHORT-GI-20][HT20]
 """)
 
     # Unmask hostapd service
@@ -100,13 +143,18 @@ def main():
         log_message("Please run the script with sudo.")
         exit(1)
 
-    log_message("Starting hotspot configuration...")
+    log_message("Starting process...")
 
-    configure_network(args.ssid, args.password)
-    restart_services()
+    if is_wifi_configured() and connect_to_wifi():
+        log_message("Connected to Wi-Fi successfully.")
+    else:
+        log_message("Could not connect to Wi-Fi. Setting up hotspot.")
+        configure_network(args.ssid, args.password)
+        restart_services()
+
     start_flask_app()
 
-    log_message("Hotspot configuration completed.")
+    log_message("Process completed.")
 
 if __name__ == "__main__":
     main()
